@@ -4,7 +4,7 @@
 # Author       : Ihsan Fadilah
 # Email        : ifadilah@oucru.org
 # Project      : Prevalence of G6PD deficiency across Indonesia
-# Last Updated : 4 January 2023
+# Last Updated : 5 January 2023
 
 # Load packages
 library(tidyverse)
