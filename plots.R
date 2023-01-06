@@ -205,8 +205,8 @@ map_female <- ina_map +
     scale_fill_gradient(low = "#e7a29c", high = "#744d58", na.value = NA,
                         limits = c(0, 23)) +
     scale_size_continuous(range = c(3, 7),
-                          limits = c(50, 1000),
-                          breaks = seq(50, 1000, by = 200)) +
+                          limits = c(0, 1000),
+                          breaks = seq(100, 1000, by = 200)) +
     # guides(size = guide_legend(title = "Sample size (n)")) +
     theme(legend.position = "bottom",
           legend.direction = "horizontal",
@@ -225,8 +225,9 @@ map_male <- ina_map +
   scale_fill_gradient(low = "#accbb9", high = "#3e634e", na.value = NA,
                       limits = c(0, 23)) +
   scale_size_continuous(range = c(3, 7),
-                        limits = c(10, 260),
-                        breaks = seq(10, 260, by = 50)) +
+                        limits = c(0, 300),
+                        breaks = c(50, 100,
+                                   150, 200, 250)) +
   # guides(size = guide_legend(title = "Sample size (n)")) +
   theme(legend.position = "bottom",
         legend.direction = "horizontal",
