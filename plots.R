@@ -225,8 +225,8 @@ map_male <- ina_map +
   scale_fill_gradient(low = "#accbb9", high = "#3e634e", na.value = NA,
                       limits = c(0, 23)) +
   scale_size_continuous(range = c(3, 7),
-                        limits = c(50, 250),
-                        breaks = seq(50, 250, by = 50)) +
+                        limits = c(10, 260),
+                        breaks = seq(10, 260, by = 50)) +
   # guides(size = guide_legend(title = "Sample size (n)")) +
   theme(legend.position = "bottom",
         legend.direction = "horizontal",
@@ -234,6 +234,7 @@ map_male <- ina_map +
         legend.spacing.x = unit(0.3, 'lines'),
         plot.margin = margin(5, 5, 5, 5, "mm"),
         text = element_text(size = 9, family = "Fira Code")) +
+  guides(colour = guide_legend(nrow = 1, byrow=TRUE)) +
   labs(fill = 'Prevalence (%) \n',
        size = ' Sample size (n)')
 
