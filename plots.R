@@ -4,10 +4,11 @@
 # Author       : Ihsan Fadilah
 # Email        : ifadilah@oucru.org
 # Project      : Prevalence of G6PD deficiency across Indonesia
-# Last Updated : 5 January 2023
+# Last Updated : 7 January 2023
 
 # Load packages
 library(tidyverse)
+library(ggbeeswarm)
 library(broom)
 library(raster)
 library(here)
@@ -92,7 +93,8 @@ ci_male <- prevalence |>
   unnest(cols = c(data, out)) |> 
   mutate(estimate = 100 * estimate,
          conf.low = 100 * conf.low,
-         conf.high = 100 * conf.high)
+         conf.high = 100 * conf.high,
+         sex = rep('Male', dim(ci_male)[1]) |> factor())
 
 # CI for females (assuming iid)
 ci_female <- prevalence |> 
@@ -109,7 +111,8 @@ ci_female <- prevalence |>
   unnest(cols = c(data, out)) |> 
   mutate(estimate = 100 * estimate,
          conf.low = 100 * conf.low,
-         conf.high = 100 * conf.high)
+         conf.high = 100 * conf.high,
+         sex = rep('Female', dim(ci_female)[1]) |> factor())
 
 # Weighted averages by sex (weights approximated by sample sizes)
 # Males
@@ -124,6 +127,11 @@ weighted_mean_female <- prevalence |>
   summarise(weighted_mean = sum(prevxn, na.rm = T) / sum(n_female,
                                                          na.rm = T)) |> 
   pull(weighted_mean)
+
+# Bees
+est_male <- ci_male |> dplyr::select(sex, estimate)
+est_female <- ci_female |> dplyr::select(sex, estimate)
+estimate <- add_row(est_male, est_female)
 
 # Map
 # Get the level-1 (district-level) Indonesia-map data
@@ -240,6 +248,44 @@ map_male <- ina_map +
        size = ' Sample size (n)')
 
 map_male
+
+## Plot: Beeswarm ----------------------------------------------------------
+
+est_by_sex <- estimate |> 
+  ggplot() +
+    geom_hline(yintercept = weighted_mean_male,
+               colour = "#5b9877", linetype = 2) +
+    geom_hline(yintercept = weighted_mean_female,
+               colour = "#e7a29c", linetype = 2) +
+    geom_beeswarm(aes(x = sex, y = estimate, colour = sex),
+                  alpha = 0.6, size = 3.1, cex = 2.3) +
+    scale_color_manual(values = c("Male" = "#5b9877",
+                                  "Female" = "#e7a29c")) +
+    theme(legend.position = 'none',
+          axis.ticks.y = element_blank(),
+          axis.ticks.x = element_blank()) +
+    scale_y_continuous(limits = c(0, 27),
+                       breaks = seq(0, 30, by = 5)) +
+    labs(x = 'Sex',
+         y = 'Prevalence (%)\n')
+
+est_by_sex
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
