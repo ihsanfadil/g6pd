@@ -4,7 +4,7 @@
 # Author       : Ihsan Fadilah
 # Email        : ifadilah@oucru.org
 # Project      : Prevalence of G6PD deficiency across Indonesia
-# Last Updated : 7 January 2023
+# Last Updated : 13 January 2023
 
 # Load packages
 library(tidyverse)
@@ -133,6 +133,15 @@ est_male <- ci_male |> dplyr::select(sex, estimate)
 est_female <- ci_female |> dplyr::select(sex, estimate)
 estimate <- add_row(est_male, est_female)
 
+# Sample sizes
+sample_male <- ci_male |>
+  dplyr::select(sex, n_male) |>
+  rename(n = n_male)
+sample_female <- ci_female |>
+  dplyr::select(sex, n_female) |> 
+  rename(n = n_female)
+sample <- add_row(sample_male, sample_female)
+
 # Map
 # Get the level-1 (district-level) Indonesia-map data
 ina_data <- getData('GADM', country = 'IDN', level = 1)
@@ -154,8 +163,8 @@ point_male <- ci_male |>
   mutate(site_name = factor(site_name),
          site_name = fct_reorder(site_name, estimate)) |> 
   ggplot(aes(x = estimate, y = site_name)) +
-  geom_vline(xintercept = weighted_mean_male,
-             linetype = 'dashed', colour = 'gray80', size = 0.4) +
+  # geom_vline(xintercept = weighted_mean_male,
+  #           linetype = 'dashed', colour = 'gray80', size = 0.4) +
   geom_point(colour = "#5b9877", alpha = 0.8, size = 1.8, shape = 19) +
   geom_errorbar(aes(xmin = conf.low, xmax = conf.high), colour = "#5b9877",
                 alpha = 0.3, size = 1.5, linetype = 1, width = 0.5) +
@@ -172,8 +181,8 @@ point_female <- ci_female |>
   mutate(site_name = factor(site_name),
          site_name = fct_reorder(site_name, estimate)) |> 
   ggplot(aes(x = estimate, y = site_name)) +
-  geom_vline(xintercept = weighted_mean_female,
-             linetype = 'dashed', colour = 'gray80', size = 0.4) +
+  # geom_vline(xintercept = weighted_mean_female,
+  #           linetype = 'dashed', colour = 'gray80', size = 0.4) +
   geom_point(colour = "#b37486", alpha = 0.8, size = 1.8, shape = 19) +
   geom_errorbar(aes(xmin = conf.low, xmax = conf.high), colour = "#b37486",
                 alpha = 0.3, size = 1.5, linetype = 1, width = 0.5) +
@@ -271,12 +280,24 @@ est_by_sex <- estimate |>
 
 est_by_sex
 
+## Plot: Sample sizes ------------------------------------------------------
 
+n_by_sex <- sample |> 
+  ggplot() +
+    geom_histogram(aes(x = n, fill = sex, colour = sex),
+                   alpha = 0.7, bins = 35, position = 'identity') +
+    scale_colour_manual(values = c("Male" = "#accbb9",
+                                   "Female" = "#e7a29c")) +
+    scale_fill_manual(values = c("Male" = "#accbb9",
+                                 "Female" = "#e7a29c")) +
+    theme(legend.position = c(0.82, 0.80)) +
+    scale_x_continuous(breaks = seq(0, 1000, by = 100)) +
+    scale_y_continuous(limits = c(0, 11),
+                       breaks = seq(0, 12, by = 2)) +
+    labs(x = '\nSample size  ',
+         y = '')
 
-
-
-
-
+n_by_sex
 
 
 
