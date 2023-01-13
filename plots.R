@@ -182,7 +182,7 @@ point_female <- ci_female |>
          site_name = fct_reorder(site_name, estimate)) |> 
   ggplot(aes(x = estimate, y = site_name)) +
   # geom_vline(xintercept = weighted_mean_female,
-  #           linetype = 'dashed', colour = 'gray80', size = 0.4) +
+  #            linetype = 'dashed', colour = 'gray80', size = 0.4) +
   geom_point(colour = "#b37486", alpha = 0.8, size = 1.8, shape = 19) +
   geom_errorbar(aes(xmin = conf.low, xmax = conf.high), colour = "#b37486",
                 alpha = 0.3, size = 1.5, linetype = 1, width = 0.5) +
@@ -191,6 +191,9 @@ point_female <- ci_female |>
        y = "")
 
 point_female
+
+# <30
+# <70
 
 ## Plot: Trend ------------------------------------------------------------
 trend_summary <- prevalence |> 
@@ -208,6 +211,8 @@ trend <- trend_summary |>
        y = "Number of published prevalence studies\n")
 
 trend
+
+# bangka belitung belum published
 
 ## Plot: Map --------------------------------------------------------------
 ina_map <- ina_data_fortified |> 
@@ -258,6 +263,10 @@ map_male <- ina_map +
 
 map_male
 
+# overlay area eliminasi, level transmisi (overall, vivax: avg 2020-2021)
+# ganti warna lebih kontras
+# ntt inset
+
 ## Plot: Beeswarm ----------------------------------------------------------
 
 est_by_sex <- estimate |> 
@@ -276,9 +285,12 @@ est_by_sex <- estimate |>
     scale_y_continuous(limits = c(0, 27),
                        breaks = seq(0, 30, by = 5)) +
     labs(x = 'Sex',
-         y = 'Prevalence (%)\n')
+         y = 'Prevalence (%)\n') +
+    facet_grid(rows = vars(island))
 
 est_by_sex
+
+# by island
 
 ## Plot: Sample sizes ------------------------------------------------------
 
@@ -299,6 +311,7 @@ n_by_sex <- sample |>
 
 n_by_sex
 
+# y-axis label
 
 
 
