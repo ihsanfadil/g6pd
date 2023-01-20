@@ -4,7 +4,9 @@
 # Author       : Ihsan Fadilah
 # Email        : ifadilah@oucru.org
 # Project      : Prevalence of G6PD deficiency across Indonesia
-# Last Updated : 13 January 2023
+
+# First created : 
+# Last updated  : Fri Jan 20 10:51:36 2023 --------------------------------
 
 # Load packages
 library(tidyverse)
@@ -154,7 +156,6 @@ ina_data <- ms_simplify(ina_data, keep = 0.001, keep_shapes = TRUE)
 
 # Convert the data into ggplot-friendly data
 ina_data_fortified <- fortify(ina_data)
-
 
 ## Plot: Points -----------------------------------------------------------
 point_male <- ci_male |> 
@@ -313,7 +314,8 @@ n_by_sex
 
 # y-axis label
 
-
+# End session
+xfun::session_info()
 
 
 
