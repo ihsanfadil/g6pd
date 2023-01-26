@@ -18,6 +18,7 @@ library(janitor)
 library(sf)
 library(rmapshaper)
 library(rgdal)
+library(cowplot)
 library(extrafont); loadfonts()
 
 # General plot formatting
@@ -318,6 +319,61 @@ ina_shp_compressed@data <- full_join(ina_shp_compressed@data,
 shp_df <- broom::tidy(ina_shp_compressed, region = "id")
 shp_df <- shp_df %>% left_join(ina_shp_compressed@data, by = c("id" = "id"))
 
+# District-specific r(prevalence, api)
+# district_prevalence <- prevalence |> 
+#   dplyr::select(admin2, site_name,
+#                 prev_male, prev_female, prev_male_0.7, prev_female_0.7) |> 
+#   mutate(admin2 = str_to_lower(admin2)) |> 
+#   rename(district = admin2)
+# 
+# district_api <- readxl::read_xlsx(
+#   path = here('data', 'Data endemisitas 2022.xlsx'),
+#   sheet = 'Endemisitas'
+# ) |>
+#   clean_names() |> 
+#   dplyr::select(propinsi, kabupaten, api_2018) |> 
+#   rename(district = kabupaten,
+#          province = propinsi) |> 
+#   mutate(district = str_to_lower(district),
+#          province = str_to_lower(province))
+#  
+# # Manually calculate weighted-API for Banjarbaru & Banjarmasin (2018)
+# api_banjar <- ((0.093897816 * 255597) + (0.008560801 * 700869)) /
+#               (255597 + 700869)
+# 
+# district_prev_api <- full_join(district_prevalence,
+#                                district_api,
+#                                by = 'district') |> 
+#   drop_na(site_name)
+# 
+# district_prev_api[13, 8] <- api_banjar
+# district_prev_api[13, 7] <- 'kalimantan selatan'
+# 
+# x <- district_prev_api %>%
+#   pivot_longer(
+#     cols = starts_with("prev_"),
+#     names_to = "sex",
+#     names_prefix = "prev_",
+#     values_to = "prev_def",
+#     values_drop_na = FALSE
+#   )
+# 
+# district_prev_api_def <- x |>
+#   filter(sex %in% c('male', 'female')) |> 
+#   mutate(sex = if_else(sex == 'male', 'Male', 'Female')) |> 
+#   drop_na(prev_def)
+# 
+# plot(filter(district_prev_api_def, sex == 'Female')$api_2018, 
+#     filter(district_prev_api_def, sex == 'Female')$prev_def)
+# 
+# district_prev_api_0.7 <- x |>
+#   filter(sex %in% c('male_0.7', 'female_0.7')) |> 
+#   mutate(sex = if_else(sex == 'male_0.7', 'Male', 'Female')) |> 
+#   drop_na(prev_def)
+# 
+# cor(filter(district_prev_api_0.7, sex == 'Female')$api_2018, 
+#     filter(district_prev_api_0.7, sex == 'Female')$prev_def)
+
 ## Plot: Points -----------------------------------------------------------
 point_male <- ci_male |> 
   # drop_na(estimate) |> # 3 with NA
@@ -430,7 +486,7 @@ ina_map <- shp_df |>
 ina_map
 
 map_female <- ina_map +
-    geom_point(data = ci_female, pch = 16, alpha = 0.6,
+    geom_point(data = ci_female, pch = 20, alpha = 0.7,
                aes(x = long, y = lat, size = n_female, colour = estimate)) +
     scale_colour_gradient(low = "#DB1F48", high = "#000000", na.value = NA,
                         limits = c(0, 50)) +
@@ -442,86 +498,201 @@ map_female <- ina_map +
           legend.direction = "vertical",
           legend.key.size = unit(1, 'lines'),
           legend.spacing.x = unit(0.3, 'lines'),
-          plot.margin = margin(5, 5, 5, 5, "mm"),
-          text = element_text(size = 9, family = "Fira Code")) +
+          plot.margin = margin(5, 10, 5, 5, "mm"),
+          text = element_text(size = 9, family = "Fira Code"),
+          legend.title = element_text(size = 9, family = "Fira Code Bold")) +
     labs(size = '\nSample size',
-         colour = '\nPrevalence (%)\n')
+         colour = '\nPrevalence (%)\n') +
+  geom_rect(
+    xmin = (119.779369 - 1.2),
+    ymin = (-9.657382 - 1.2),
+    xmax = (119.779369 + 1.2),
+    ymax = (-9.657382 + 1.2),
+    fill = NA, 
+    colour = "black",
+    size = 0.3
+  )
 
 map_female
 
+inset_map_female <- ggdraw(map_female) +
+  draw_plot(
+    {
+      map_female +
+        coord_sf(
+          xlim = c((119.779369 - 1.2), (119.779369 + 1.2)),
+          ylim = c((-9.657382 - 1.2), (-9.657382 + 1.2)),
+          expand = FALSE
+        ) +
+        theme(legend.position = 'none')
+    },
+    # The distance along a (0,1) x-axis to draw the left edge of the plot
+    x = 0.58, 
+    # The distance along a (0,1) y-axis to draw the bottom edge of the plot
+    y = 0.60,
+    # The width and height of the plot expressed as proportion of the entire
+    # ggdraw object
+    width = 0.38, 
+    height = 0.38)
+
+inset_map_female
+
 map_male <- ina_map +
-  geom_point(data = ci_male, alpha = 0.8, colour = "gray40", pch = 21,
-             aes(x = long, y = lat, size = n_male, fill = estimate)) +
-  scale_fill_gradient(low = "#fcb97d", high = "#a84268", na.value = NA,
-                      limits = c(0, 50)) +
+  geom_point(data = ci_male, pch = 20, alpha = 0.7,
+             aes(x = long, y = lat, size = n_male, colour = estimate)) +
+  scale_colour_gradient(low = "#DB1F48", high = "#000000", na.value = NA,
+                        limits = c(0, 50)) +
   scale_size_continuous(range = c(3, 7),
                         limits = c(0, 1000),
                         breaks = seq(100, 1000, by = 200)) +
-#  scale_size_continuous(range = c(3, 7),
-#                        limits = c(0, 300),
-#                        breaks = c(50, 100,
-#                                   150, 200, 250)) +
   # guides(size = guide_legend(title = "Sample size (n)")) +
-  theme(legend.position = "bottom",
-        legend.direction = "horizontal",
+  theme(legend.position = "right",
+        legend.direction = "vertical",
         legend.key.size = unit(1, 'lines'),
         legend.spacing.x = unit(0.3, 'lines'),
-        plot.margin = margin(5, 5, 5, 5, "mm"),
-        text = element_text(size = 9, family = "Fira Code")) +
-  guides(colour = guide_legend(nrow = 1, byrow=TRUE)) +
-  labs(fill = ' Prevalence (%) \n',
-       size = ' Sample size (n)')
+        plot.margin = margin(5, 10, 5, 5, "mm"),
+        text = element_text(size = 9, family = "Fira Code"),
+        legend.title = element_text(size = 9, family = "Fira Code Bold")) +
+  labs(size = '\nSample size',
+       colour = '\nPrevalence (%)\n') +
+  geom_rect(
+    xmin = (119.779369 - 1.2),
+    ymin = (-9.657382 - 1.2),
+    xmax = (119.779369 + 1.2),
+    ymax = (-9.657382 + 1.2),
+    fill = NA, 
+    colour = "black",
+    size = 0.3
+  )
 
 map_male
 
+inset_map_male <- ggdraw(map_male) +
+  draw_plot(
+    {
+      map_male +
+        coord_sf(
+          xlim = c((119.779369 - 1.2), (119.779369 + 1.2)),
+          ylim = c((-9.657382 - 1.2), (-9.657382 + 1.2)),
+          expand = FALSE
+        ) +
+        theme(legend.position = 'none')
+    },
+    # The distance along a (0,1) x-axis to draw the left edge of the plot
+    x = 0.58, 
+    # The distance along a (0,1) y-axis to draw the bottom edge of the plot
+    y = 0.60,
+    # The width and height of the plot expressed as proportion of the entire
+    # ggdraw object
+    width = 0.38, 
+    height = 0.38)
+
+inset_map_male
+
 # <0.7
 map_female_0.7 <- ina_map +
-  geom_point(data = ci_female_0.7, alpha = 0.8, colour = "gray40", pch = 21,
-             aes(x = long, y = lat, size = n_female, fill = estimate)) +
-  scale_fill_gradient(low = "#fcb97d", high = "#a84268", na.value = NA,
-                      limits = c(0, 50)) +
+  geom_point(data = ci_female_0.7, pch = 20, alpha = 0.7,
+             aes(x = long, y = lat, size = n_female, colour = estimate)) +
+  scale_colour_gradient(low = "#DB1F48", high = "#000000", na.value = NA,
+                        limits = c(0, 50)) +
   scale_size_continuous(range = c(3, 7),
                         limits = c(0, 1000),
                         breaks = seq(100, 1000, by = 200)) +
   # guides(size = guide_legend(title = "Sample size (n)")) +
-  theme(legend.position = "bottom",
-        legend.direction = "horizontal",
+  theme(legend.position = "right",
+        legend.direction = "vertical",
         legend.key.size = unit(1, 'lines'),
         legend.spacing.x = unit(0.3, 'lines'),
-        plot.margin = margin(5, 5, 5, 5, "mm"),
-        text = element_text(size = 9, family = "Fira Code")) +
-  labs(fill = ' Prevalence (%)',
-       size = ' Sample size (n)')
+        plot.margin = margin(5, 10, 5, 5, "mm"),
+        text = element_text(size = 9, family = "Fira Code"),
+        legend.title = element_text(size = 9, family = "Fira Code Bold")) +
+  labs(size = '\nSample size',
+       colour = '\nPrevalence (%)\n') +
+  geom_rect(
+    xmin = (119.779369 - 1.2),
+    ymin = (-9.657382 - 1.2),
+    xmax = (119.779369 + 1.2),
+    ymax = (-9.657382 + 1.2),
+    fill = NA, 
+    colour = "black",
+    size = 0.3
+  )
 
 map_female_0.7
 
+inset_map_female_0.7 <- ggdraw(map_female_0.7) +
+  draw_plot(
+    {
+      map_female_0.7 +
+        coord_sf(
+          xlim = c((119.779369 - 1.2), (119.779369 + 1.2)),
+          ylim = c((-9.657382 - 1.2), (-9.657382 + 1.2)),
+          expand = FALSE
+        ) +
+        theme(legend.position = 'none')
+    },
+    # The distance along a (0,1) x-axis to draw the left edge of the plot
+    x = 0.58, 
+    # The distance along a (0,1) y-axis to draw the bottom edge of the plot
+    y = 0.60,
+    # The width and height of the plot expressed as proportion of the entire
+    # ggdraw object
+    width = 0.38, 
+    height = 0.38)
+
+inset_map_female_0.7
+
 map_male_0.7 <- ina_map +
-  geom_point(data = ci_male_0.7, alpha = 0.8, colour = "gray40", pch = 21,
-             aes(x = long, y = lat, size = n_male, fill = estimate)) +
-  scale_fill_gradient(low = "#fcb97d", high = "#a84268", na.value = NA,
-                      limits = c(0, 50)) +
+  geom_point(data = ci_male_0.7, pch = 20, alpha = 0.7,
+             aes(x = long, y = lat, size = n_male, colour = estimate)) +
+  scale_colour_gradient(low = "#DB1F48", high = "#000000", na.value = NA,
+                        limits = c(0, 50)) +
   scale_size_continuous(range = c(3, 7),
                         limits = c(0, 1000),
                         breaks = seq(100, 1000, by = 200)) +
-  #  scale_size_continuous(range = c(3, 7),
-  #                        limits = c(0, 300),
-  #                        breaks = c(50, 100,
-  #                                   150, 200, 250)) +
   # guides(size = guide_legend(title = "Sample size (n)")) +
-  theme(legend.position = "bottom",
-        legend.direction = "horizontal",
+  theme(legend.position = "right",
+        legend.direction = "vertical",
         legend.key.size = unit(1, 'lines'),
         legend.spacing.x = unit(0.3, 'lines'),
-        plot.margin = margin(5, 5, 5, 5, "mm"),
-        text = element_text(size = 9, family = "Fira Code")) +
-  guides(colour = guide_legend(nrow = 1, byrow=TRUE)) +
-  labs(fill = ' Prevalence (%) \n',
-       size = ' Sample size (n)')
+        plot.margin = margin(5, 10, 5, 5, "mm"),
+        text = element_text(size = 9, family = "Fira Code"),
+        legend.title = element_text(size = 9, family = "Fira Code Bold")) +
+  labs(size = '\nSample size',
+       colour = '\nPrevalence (%)\n') +
+  geom_rect(
+    xmin = (119.779369 - 1.2),
+    ymin = (-9.657382 - 1.2),
+    xmax = (119.779369 + 1.2),
+    ymax = (-9.657382 + 1.2),
+    fill = NA, 
+    colour = "black",
+    size = 0.3
+  )
 
 map_male_0.7
 
-# overlay area eliminasi, level transmisi (overall, vivax: avg 2020-2021)
-# ntt inset
+inset_map_male_0.7 <- ggdraw(map_male_0.7) +
+  draw_plot(
+    {
+      map_male_0.7 +
+        coord_sf(
+          xlim = c((119.779369 - 1.2), (119.779369 + 1.2)),
+          ylim = c((-9.657382 - 1.2), (-9.657382 + 1.2)),
+          expand = FALSE
+        ) +
+        theme(legend.position = 'none')
+    },
+    # The distance along a (0,1) x-axis to draw the left edge of the plot
+    x = 0.58, 
+    # The distance along a (0,1) y-axis to draw the bottom edge of the plot
+    y = 0.60,
+    # The width and height of the plot expressed as proportion of the entire
+    # ggdraw object
+    width = 0.38, 
+    height = 0.38)
+
+inset_map_male_0.7
 
 ## Plot: Beeswarm ----------------------------------------------------------
 
@@ -599,9 +770,6 @@ n_by_sex <- sample |>
          y = 'Number of studies\n')
 
 n_by_sex
-
-# Correlation between API and G6PD prevalence
-
 
 # End session
 xfun::session_info()
