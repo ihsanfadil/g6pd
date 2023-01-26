@@ -6,9 +6,9 @@
 # Project      : Prevalence of G6PD deficiency across Indonesia
 
 # First created : 
-# Last updated  : Fri Jan 20 10:51:36 2023 --------------------------------
+# Last updated  : 
 
-# Load packages
+# Package dependencies
 library(tidyverse)
 library(ggbeeswarm)
 library(broom)
@@ -17,6 +17,7 @@ library(here)
 library(janitor)
 library(sf)
 library(rmapshaper)
+library(rgdal)
 library(extrafont); loadfonts()
 
 # General plot formatting
@@ -53,6 +54,8 @@ prevalence <- readxl::read_xlsx(
 prevalence <- clean_names(prevalence) |>  # Columns in lower-case
   mutate(prev_male = 100 * male_def / n_male,
          prev_female = 100 * fem_def / n_female,
+         prev_male_0.7 = 100 * (male_int + male_def) / n_male,
+         prev_female_0.7 = 100 * (fem_int + fem_def) / n_female,
          site_name = if_else(site_name == '2 cities in South Kalimantan',
                              'Banjarmasin & Banjarbaru',
                              site_name),
@@ -72,12 +75,7 @@ prevalence <- clean_names(prevalence) |>  # Columns in lower-case
            admin1 == 'South Kalimantan' ~ 'Kalimantan',
            admin1 == 'West Sumatra' ~ 'Sumatra',
            TRUE ~ NA_character_
-         ),
-         pm = prev_male / 100,
-         pf = prev_female / 100,
-         lci_male = 100 * (pm - (qnorm(0.975) * sqrt((pm * (1 - pm))/n_male))),
-         lci_male = if_else(lci_male < 0, 0, lci_male),
-         uci_male = 100 * (pm + (qnorm(0.975) * sqrt((pm * (1 - pm))/n_male))),       
+         )
   )
 
 # CI for males (assuming iid)
@@ -93,10 +91,35 @@ ci_male <- prevalence |>
   ungroup() |> 
   unnest(out) |> 
   unnest(cols = c(data, out)) |> 
+  dplyr::select(-prev_male) 
+  
+ci_male <- ci_male |> 
   mutate(estimate = 100 * estimate,
          conf.low = 100 * conf.low,
          conf.high = 100 * conf.high,
          sex = rep('Male', dim(ci_male)[1]) |> factor())
+
+# <0.7 activity
+ci_male_0.7 <- prevalence |> 
+  drop_na(prev_male_0.7) |> 
+  group_by(site_name) |> 
+  nest() |> 
+  mutate(out = map(
+    .x = data,
+    .f = ~summarise(.data = .x,
+                    out = list(prop.test((male_int + male_def), n_male) |>
+                                 tidy()))
+  )) |> 
+  ungroup() |> 
+  unnest(out) |> 
+  unnest(cols = c(data, out)) |> 
+  dplyr::select(-prev_male_0.7) 
+
+ci_male_0.7 <- ci_male_0.7 |> 
+  mutate(estimate = 100 * estimate,
+         conf.low = 100 * conf.low,
+         conf.high = 100 * conf.high,
+         sex = rep('Male', dim(ci_male_0.7)[1]) |> factor())
 
 # CI for females (assuming iid)
 ci_female <- prevalence |> 
@@ -111,29 +134,82 @@ ci_female <- prevalence |>
   ungroup() |> 
   unnest(out) |> 
   unnest(cols = c(data, out)) |> 
+  dplyr::select(-prev_female)
+
+ci_female <- ci_female |> 
   mutate(estimate = 100 * estimate,
          conf.low = 100 * conf.low,
          conf.high = 100 * conf.high,
          sex = rep('Female', dim(ci_female)[1]) |> factor())
 
-# Weighted averages by sex (weights approximated by sample sizes)
+# <0.7 activity
+ci_female_0.7 <- prevalence |> 
+  drop_na(prev_female_0.7) |> 
+  group_by(site_name) |> 
+  nest() |> 
+  mutate(out = map(
+    .x = data,
+    .f = ~summarise(.data = .x,
+                    out = list(prop.test((fem_int + fem_def), n_female) |>
+                                 tidy()))
+  )) |> 
+  ungroup() |> 
+  unnest(out) |> 
+  unnest(cols = c(data, out)) |> 
+  dplyr::select(-prev_female_0.7) 
+
+ci_female_0.7 <- ci_female_0.7 |> 
+  mutate(estimate = 100 * estimate,
+         conf.low = 100 * conf.low,
+         conf.high = 100 * conf.high,
+         sex = rep('Female', dim(ci_female_0.7)[1]) |> factor())
+
+# Central tendencies by sex (weights approximated by sample sizes)
 # Males
-weighted_mean_male <- prevalence |> 
-  mutate(prevxn = prev_male * n_male) |> 
-  summarise(weighted_mean = sum(prevxn, na.rm = T) / sum(n_male, na.rm = T)) |> 
-  pull(weighted_mean)
+central_male <- ci_male |> 
+  mutate(prevxn = estimate * n_male) |> 
+  summarise(weighted_mean = sum(prevxn, na.rm = T) / sum(n_male, na.rm = T),
+            median = median(estimate)) 
+
+weighted_mean_male <- central_male |> pull(weighted_mean)
+median_male <- central_male |> pull(median)
+
+# <0.7
+central_male_0.7 <- ci_male_0.7 |> 
+  mutate(prevxn = estimate * n_male) |> 
+  summarise(weighted_mean = sum(prevxn, na.rm = T) / sum(n_male, na.rm = T),
+            median = median(estimate)) 
+
+weighted_mean_male_0.7 <- central_male_0.7 |> pull(weighted_mean)
+median_male_0.7 <- central_male_0.7 |> pull(median)
 
 # Females
-weighted_mean_female <- prevalence |> 
-  mutate(prevxn = prev_female * n_female) |> 
-  summarise(weighted_mean = sum(prevxn, na.rm = T) / sum(n_female,
-                                                         na.rm = T)) |> 
-  pull(weighted_mean)
+central_female <- ci_female |> 
+  mutate(prevxn = estimate * n_female) |> 
+  summarise(weighted_mean = sum(prevxn, na.rm = T) / sum(n_female, na.rm = T),
+            median = median(estimate))
+
+weighted_mean_female <- central_female |> pull(weighted_mean)
+median_female <- central_female |> pull(median)
+
+# <0.7
+central_female_0.7 <- ci_female_0.7 |> 
+  mutate(prevxn = estimate * n_female) |> 
+  summarise(weighted_mean = sum(prevxn, na.rm = T) / sum(n_female, na.rm = T),
+            median = median(estimate))
+
+weighted_mean_female_0.7 <- central_female |> pull(weighted_mean)
+median_female_0.7 <- central_female |> pull(median)
 
 # Bees
-est_male <- ci_male |> dplyr::select(sex, estimate)
-est_female <- ci_female |> dplyr::select(sex, estimate)
+est_male <- ci_male |> dplyr::select(sex, estimate, island)
+est_female <- ci_female |> dplyr::select(sex, estimate, island)
 estimate <- add_row(est_male, est_female)
+
+# <0.7
+est_male_0.7 <- ci_male_0.7 |> dplyr::select(sex, estimate, island)
+est_female_0.7 <- ci_female_0.7 |> dplyr::select(sex, estimate, island)
+estimate_0.7 <- add_row(est_male_0.7, est_female_0.7)
 
 # Sample sizes
 sample_male <- ci_male |>
@@ -145,21 +221,106 @@ sample_female <- ci_female |>
 sample <- add_row(sample_male, sample_female)
 
 # Map
-# Get the level-1 (district-level) Indonesia-map data
-ina_data <- getData('GADM', country = 'IDN', level = 1)
+# Load the map data (run if complete rerunning is required)
+# ina_shp <- readOGR(dsn = here('data', 'INDOPROV2017', 'INDOPROV2017.shp'),
+#                    stringsAsFactors = F)
+ 
+# Simplify the high-resolution map data to 0.1% of the original
+# Run if complete rerunning is required
+# ina_shp_compressed <- ms_simplify(ina_shp, keep = 0.001, keep_shapes = TRUE)
 
-# Simplify the high-resolution map data to x%
-ina_data <- ms_simplify(ina_data, keep = 0.001, keep_shapes = TRUE)
+# Save the map object to cut processing time
+# Run if complete rerunning is required
+# save(ina_shp_compressed, file = here('data', 'ina_shp_compressed.RData'))
 
-# Check memory the object used
-# round(c(object.size(ina_data), object.size(ina_data)) / 1024)
+# Load the simplified map data
+load(here('data', 'ina_shp_compressed.RData'))
 
-# Convert the data into ggplot-friendly data
-ina_data_fortified <- fortify(ina_data)
+# API and population-size data
+population <- readxl::read_xlsx(
+  path = here('data', 'Data Penduduk Malaria_2017-2022.xlsx'),
+  sheet = 'Sheet1'
+) |> 
+  clean_names() |> 
+  dplyr::select(province, district, population_2020, population_2021) |> 
+  group_by(province) |> 
+  nest() |> 
+  mutate(
+    pop_2020 = map(
+      .x = data,
+      .f = ~summarise(.data = .x, pop_2020 = sum(population_2020))),
+    pop_2021 = map(
+      .x = data,
+      .f = ~summarise(.data = .x, pop_2021 = sum(population_2021)))
+  ) |> 
+  ungroup() |> 
+  unnest(cols = c(pop_2020, pop_2021)) |> 
+  drop_na(province) |> 
+  rename(data_pop = data)
+
+api <- readxl::read_xlsx(
+  path = here('data', 'Data endemisitas 2022.xlsx'),
+  sheet = 'Endemisitas'
+) |> 
+  clean_names() |> 
+  dplyr::select(propinsi, kabupaten, positif_2020, positif_2021_per_13_mar22) |> 
+  rename(province = propinsi,
+         district = kabupaten,
+         n_case_2020 = positif_2020,
+         n_case_2021 = positif_2021_per_13_mar22) |> 
+  group_by(province) |> 
+  nest() |> 
+  mutate(
+    n_case_2020 = map(
+      .x = data,
+      .f = ~summarise(.data = .x, n_case_2020 = sum(n_case_2020))),
+    n_case_2021 = map(
+      .x = data,
+      .f = ~summarise(.data = .x, n_case_2021 = sum(n_case_2021)))
+  ) |> 
+  ungroup() |> 
+  unnest(cols = c(n_case_2020, n_case_2021)) |> 
+  drop_na(n_case_2020) |> 
+  filter(province != 'NASIONAL') |> 
+  rename(data_api = data)
+
+api_pop <- full_join(api, population, by = 'province') |> 
+  mutate(
+    api_2020 = 1000 * n_case_2020 / pop_2020,
+    api_2021 = 1000 * n_case_2021 / pop_2021,
+    api_wavg = ((api_2020 * pop_2020) + (api_2021 * pop_2021)) /
+               (pop_2020 + pop_2021),
+    api_avg = (api_2020 + api_2021) / 2,
+    api_group = case_when(api_wavg >= 100 ~ 'High III [100, ∞)',
+                          api_wavg >= 50 ~ 'High II [50, 100)',
+                          api_wavg >= 5 ~ 'High I [5, 50)',
+                          api_wavg >= 1 ~ 'Moderate [1, 5)',
+                          TRUE ~ 'Low or elimination [0, 1)'),
+    api_group = factor(api_group,
+                       ordered = TRUE,
+                       levels = c('High III [100, ∞)',
+                                  'High II [50, 100)',
+                                  'High I [5, 50)',
+                                  'Moderate [1, 5)',
+                                  'Low or elimination [0, 1)'))
+  )
+
+api_pop_for_map <- api_pop |>
+  dplyr::select(province, api_wavg, api_group) |> 
+  rename(ADMIN1 = province) |> 
+  mutate(ADMIN1 = if_else(ADMIN1 == 'KEP. RIAU', 'KEPULAUAN RIAU', ADMIN1))
+
+ina_shp_compressed@data <- full_join(ina_shp_compressed@data,
+                                     api_pop_for_map,
+                                     by = 'ADMIN1') |> 
+  mutate(id = IDADMIN1)
+
+shp_df <- broom::tidy(ina_shp_compressed, region = "id")
+shp_df <- shp_df %>% left_join(ina_shp_compressed@data, by = c("id" = "id"))
 
 ## Plot: Points -----------------------------------------------------------
 point_male <- ci_male |> 
-  drop_na(prev_male) |> # 3 with NA
+  # drop_na(estimate) |> # 3 with NA
   filter(n_male >= 5) |> # Pund 0/2
   mutate(site_name = factor(site_name),
          site_name = fct_reorder(site_name, estimate)) |> 
@@ -169,15 +330,32 @@ point_male <- ci_male |>
   geom_point(colour = "#5b9877", alpha = 0.8, size = 1.8, shape = 19) +
   geom_errorbar(aes(xmin = conf.low, xmax = conf.high), colour = "#5b9877",
                 alpha = 0.3, size = 1.5, linetype = 1, width = 0.5) +
-  scale_x_continuous(limits = c(0, 50), breaks = seq(0, 50, by = 10)) +
+  scale_x_continuous(limits = c(0, 60), breaks = seq(0, 60, by = 10)) +
+  labs(x = "\nPrevalence (%)",
+       y = "")
+# + facet_wrap(vars(factor(island)), scales = "free")
+
+point_male_0.7 <- ci_male_0.7 |> 
+  # drop_na(estimate) |> # 3 with NA
+  filter(n_male >= 5) |> # Pund 0/2
+  mutate(site_name = factor(site_name),
+         site_name = fct_reorder(site_name, estimate)) |> 
+  ggplot(aes(x = estimate, y = site_name)) +
+  # geom_vline(xintercept = weighted_mean_male,
+  #           linetype = 'dashed', colour = 'gray80', size = 0.4) +
+  geom_point(colour = "#5b9877", alpha = 0.8, size = 1.8, shape = 19) +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), colour = "#5b9877",
+                alpha = 0.3, size = 1.5, linetype = 1, width = 0.5) +
+  scale_x_continuous(limits = c(0, 60), breaks = seq(0, 60, by = 10)) +
   labs(x = "\nPrevalence (%)",
        y = "")
 # + facet_wrap(vars(factor(island)), scales = "free")
 
 point_male
+point_male_0.7
 
 point_female <- ci_female |> 
-  drop_na(prev_female) |> # 7 with NA
+  # drop_na(prev_female) |> # 7 with NA
   filter(n_female >= 5) |> # None excluded
   mutate(site_name = factor(site_name),
          site_name = fct_reorder(site_name, estimate)) |> 
@@ -187,14 +365,28 @@ point_female <- ci_female |>
   geom_point(colour = "#b37486", alpha = 0.8, size = 1.8, shape = 19) +
   geom_errorbar(aes(xmin = conf.low, xmax = conf.high), colour = "#b37486",
                 alpha = 0.3, size = 1.5, linetype = 1, width = 0.5) +
-  scale_x_continuous(limits = c(0, 50), breaks = seq(0, 50, by = 10)) +
+  scale_x_continuous(limits = c(0, 60), breaks = seq(0, 60, by = 10)) +
+  labs(x = "\nPrevalence (%)",
+       y = "")
+
+point_female_0.7 <- ci_female_0.7 |> 
+  # drop_na(prev_female) |> # 7 with NA
+  filter(n_female >= 5) |> # None excluded
+  mutate(site_name = factor(site_name),
+         site_name = fct_reorder(site_name, estimate)) |> 
+  ggplot(aes(x = estimate, y = site_name)) +
+  # geom_vline(xintercept = weighted_mean_female,
+  #            linetype = 'dashed', colour = 'gray80', size = 0.4) +
+  geom_point(colour = "#b37486", alpha = 0.8, size = 1.8, shape = 19) +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), colour = "#b37486",
+                alpha = 0.3, size = 1.5, linetype = 1, width = 0.5) +
+  scale_x_continuous(limits = c(0, 60), breaks = seq(0, 60, by = 10)) +
   labs(x = "\nPrevalence (%)",
        y = "")
 
 point_female
+point_female_0.7
 
-# <30
-# <70
 
 ## Plot: Trend ------------------------------------------------------------
 trend_summary <- prevalence |> 
@@ -209,48 +401,66 @@ trend <- trend_summary |>
   scale_fill_manual(values = custom_colours) +
   theme(legend.position = c(0.75, 0.80)) +
   labs(x = "\nYear conducted",
-       y = "Number of published prevalence studies\n")
+       y = "Number of prevalence studies\n")
 
 trend
 
-# bangka belitung belum published
-
 ## Plot: Map --------------------------------------------------------------
-ina_map <- ina_data_fortified |> 
+ina_map <- shp_df |> 
   ggplot() +
-    geom_polygon(aes(x = long, y = lat, group = group),
-                 fill = 'lightgray', colour = 'white', size = 0.2) +
-    theme_void()
+    geom_polygon(aes(x = long, y = lat, group = group, fill = api_group),
+                 colour = 'white', size = 0.2, alpha = 1) +
+    theme_void() +
+    theme(legend.key.size = unit(1, 'lines'),
+          legend.spacing.x = unit(0.3, 'lines'),
+          plot.margin = margin(5, 5, 5, 5, "mm"),
+          text = element_text(size = 9, family = "Fira Code"),
+          legend.title = element_text(size = 7.5)) +
+    labs(fill =
+      '\nProvince-specific\nannual parasite incidence\nper 1000 population') +
+    scale_fill_manual(values = c('#a84268',
+                                 '#e3615f',
+                                 '#fcb97d',
+                                 '#9dbf9e'),
+                      limits = c('High II [50, 100)',
+                                 'High I [5, 50)',
+                                 'Moderate [1, 5)',
+                                 'Low or elimination [0, 1)'))
+
+ina_map
 
 map_female <- ina_map +
-    geom_point(data = ci_female, alpha = 0.8, colour = "gray40", pch = 21,
-               aes(x = long, y = lat, size = n_female, fill = estimate)) +
-    scale_fill_gradient(low = "#e7a29c", high = "#744d58", na.value = NA,
-                        limits = c(0, 23)) +
+    geom_point(data = ci_female, pch = 16, alpha = 0.6,
+               aes(x = long, y = lat, size = n_female, colour = estimate)) +
+    scale_colour_gradient(low = "#DB1F48", high = "#000000", na.value = NA,
+                        limits = c(0, 50)) +
     scale_size_continuous(range = c(3, 7),
                           limits = c(0, 1000),
                           breaks = seq(100, 1000, by = 200)) +
     # guides(size = guide_legend(title = "Sample size (n)")) +
-    theme(legend.position = "bottom",
-          legend.direction = "horizontal",
+    theme(legend.position = "right",
+          legend.direction = "vertical",
           legend.key.size = unit(1, 'lines'),
           legend.spacing.x = unit(0.3, 'lines'),
           plot.margin = margin(5, 5, 5, 5, "mm"),
           text = element_text(size = 9, family = "Fira Code")) +
-    labs(fill = 'Prevalence (%) \n',
-         size = ' Sample size (n)')
+    labs(size = '\nSample size',
+         colour = '\nPrevalence (%)\n')
 
 map_female
 
 map_male <- ina_map +
   geom_point(data = ci_male, alpha = 0.8, colour = "gray40", pch = 21,
              aes(x = long, y = lat, size = n_male, fill = estimate)) +
-  scale_fill_gradient(low = "#accbb9", high = "#3e634e", na.value = NA,
-                      limits = c(0, 23)) +
+  scale_fill_gradient(low = "#fcb97d", high = "#a84268", na.value = NA,
+                      limits = c(0, 50)) +
   scale_size_continuous(range = c(3, 7),
-                        limits = c(0, 300),
-                        breaks = c(50, 100,
-                                   150, 200, 250)) +
+                        limits = c(0, 1000),
+                        breaks = seq(100, 1000, by = 200)) +
+#  scale_size_continuous(range = c(3, 7),
+#                        limits = c(0, 300),
+#                        breaks = c(50, 100,
+#                                   150, 200, 250)) +
   # guides(size = guide_legend(title = "Sample size (n)")) +
   theme(legend.position = "bottom",
         legend.direction = "horizontal",
@@ -259,13 +469,58 @@ map_male <- ina_map +
         plot.margin = margin(5, 5, 5, 5, "mm"),
         text = element_text(size = 9, family = "Fira Code")) +
   guides(colour = guide_legend(nrow = 1, byrow=TRUE)) +
-  labs(fill = 'Prevalence (%) \n',
+  labs(fill = ' Prevalence (%) \n',
        size = ' Sample size (n)')
 
 map_male
 
+# <0.7
+map_female_0.7 <- ina_map +
+  geom_point(data = ci_female_0.7, alpha = 0.8, colour = "gray40", pch = 21,
+             aes(x = long, y = lat, size = n_female, fill = estimate)) +
+  scale_fill_gradient(low = "#fcb97d", high = "#a84268", na.value = NA,
+                      limits = c(0, 50)) +
+  scale_size_continuous(range = c(3, 7),
+                        limits = c(0, 1000),
+                        breaks = seq(100, 1000, by = 200)) +
+  # guides(size = guide_legend(title = "Sample size (n)")) +
+  theme(legend.position = "bottom",
+        legend.direction = "horizontal",
+        legend.key.size = unit(1, 'lines'),
+        legend.spacing.x = unit(0.3, 'lines'),
+        plot.margin = margin(5, 5, 5, 5, "mm"),
+        text = element_text(size = 9, family = "Fira Code")) +
+  labs(fill = ' Prevalence (%)',
+       size = ' Sample size (n)')
+
+map_female_0.7
+
+map_male_0.7 <- ina_map +
+  geom_point(data = ci_male_0.7, alpha = 0.8, colour = "gray40", pch = 21,
+             aes(x = long, y = lat, size = n_male, fill = estimate)) +
+  scale_fill_gradient(low = "#fcb97d", high = "#a84268", na.value = NA,
+                      limits = c(0, 50)) +
+  scale_size_continuous(range = c(3, 7),
+                        limits = c(0, 1000),
+                        breaks = seq(100, 1000, by = 200)) +
+  #  scale_size_continuous(range = c(3, 7),
+  #                        limits = c(0, 300),
+  #                        breaks = c(50, 100,
+  #                                   150, 200, 250)) +
+  # guides(size = guide_legend(title = "Sample size (n)")) +
+  theme(legend.position = "bottom",
+        legend.direction = "horizontal",
+        legend.key.size = unit(1, 'lines'),
+        legend.spacing.x = unit(0.3, 'lines'),
+        plot.margin = margin(5, 5, 5, 5, "mm"),
+        text = element_text(size = 9, family = "Fira Code")) +
+  guides(colour = guide_legend(nrow = 1, byrow=TRUE)) +
+  labs(fill = ' Prevalence (%) \n',
+       size = ' Sample size (n)')
+
+map_male_0.7
+
 # overlay area eliminasi, level transmisi (overall, vivax: avg 2020-2021)
-# ganti warna lebih kontras
 # ntt inset
 
 ## Plot: Beeswarm ----------------------------------------------------------
@@ -276,6 +531,10 @@ est_by_sex <- estimate |>
                colour = "#5b9877", linetype = 2) +
     geom_hline(yintercept = weighted_mean_female,
                colour = "#e7a29c", linetype = 2) +
+    geom_hline(yintercept = median_male,
+               colour = "#5b9877", linetype = 3) +
+    geom_hline(yintercept = median_female,
+               colour = "#e7a29c", linetype = 3) +
     geom_beeswarm(aes(x = sex, y = estimate, colour = sex),
                   alpha = 0.6, size = 3.1, cex = 2.3) +
     scale_color_manual(values = c("Male" = "#5b9877",
@@ -283,15 +542,44 @@ est_by_sex <- estimate |>
     theme(legend.position = 'none',
           axis.ticks.y = element_blank(),
           axis.ticks.x = element_blank()) +
-    scale_y_continuous(limits = c(0, 27),
-                       breaks = seq(0, 30, by = 5)) +
+    scale_y_continuous(limits = c(0, 50),
+                       breaks = seq(0, 50, by = 10)) +
     labs(x = 'Sex',
-         y = 'Prevalence (%)\n') +
-    facet_grid(rows = vars(island))
+         y = 'Prevalence (%)\n')
 
 est_by_sex
 
-# by island
+# <0.7
+est_by_sex_0.7 <- estimate_0.7 |> 
+  ggplot() +
+  geom_hline(yintercept = weighted_mean_male_0.7,
+             colour = "#5b9877", linetype = 2) +
+  geom_hline(yintercept = weighted_mean_female_0.7,
+             colour = "#e7a29c", linetype = 2) +
+  geom_hline(yintercept = median_male_0.7,
+             colour = "#5b9877", linetype = 3) +
+  geom_hline(yintercept = median_female_0.7,
+             colour = "#e7a29c", linetype = 3) +
+  geom_beeswarm(aes(x = sex, y = estimate, colour = sex),
+                alpha = 0.6, size = 3.1, cex = 2.3) +
+  scale_color_manual(values = c("Male" = "#5b9877",
+                                "Female" = "#e7a29c")) +
+  theme(legend.position = 'none',
+        axis.ticks.y = element_blank(),
+        axis.ticks.x = element_blank()) +
+  scale_y_continuous(limits = c(0, 50),
+                     breaks = seq(0, 50, by = 10)) +
+  labs(x = 'Sex',
+       y = 'Prevalence (%)\n')
+
+est_by_sex_0.7
+
+# By island
+est_by_sex_by_island <- est_by_sex + facet_wrap(~island) # Deficient-only
+est_by_sex_0.7_by_island <- est_by_sex_0.7 + facet_wrap(~island) # <0.7
+
+est_by_sex_by_island
+est_by_sex_0.7_by_island
 
 ## Plot: Sample sizes ------------------------------------------------------
 
@@ -308,11 +596,12 @@ n_by_sex <- sample |>
     scale_y_continuous(limits = c(0, 11),
                        breaks = seq(0, 12, by = 2)) +
     labs(x = '\nSample size  ',
-         y = '')
+         y = 'Number of studies\n')
 
 n_by_sex
 
-# y-axis label
+# Correlation between API and G6PD prevalence
+
 
 # End session
 xfun::session_info()
