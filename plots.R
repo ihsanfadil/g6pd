@@ -76,7 +76,29 @@ prevalence <- clean_names(prevalence) |>  # Columns in lower-case
            admin1 == 'South Kalimantan' ~ 'Kalimantan',
            admin1 == 'West Sumatra' ~ 'Sumatra',
            TRUE ~ NA_character_
-         )
+         ),
+         n_male_cat = case_when(
+            n_male <= 10 ~ '[1, 10)',
+            n_male <= 100 ~ '[10, 100)',
+            n_male <= 1000 ~ '[100, 1000)',
+            is.na(n_male) ~ NA_character_,
+            TRUE ~ 'Check me!'
+         ) |> factor(), 
+         n_female_cat = case_when(
+           n_female <= 10 ~ '[1, 10)',
+           n_female <= 100 ~ '[10, 100)',
+           n_female <= 1000 ~ '[100, 1000)',
+           is.na(n_female) ~ NA_character_,
+           TRUE ~ 'Check me!'
+         ) |> factor(), 
+         n_total_cat = case_when(
+           n_total <= 10 ~ '[1, 10)',
+           n_total <= 100 ~ '[10, 100)',
+           n_total <= 1000 ~ '[100, 1000)',
+           is.na(n_total) ~ NA_character_,
+           TRUE ~ 'Check me!'
+         ) |> factor(levels = c('[1, 10)', '[10, 100)', '[100, 1000)')), 
+         prev_total = 100 * (total_def / n_total)
   )
 
 # CI for males (assuming iid)
@@ -199,8 +221,8 @@ central_female_0.7 <- ci_female_0.7 |>
   summarise(weighted_mean = sum(prevxn, na.rm = T) / sum(n_female, na.rm = T),
             median = median(estimate))
 
-weighted_mean_female_0.7 <- central_female |> pull(weighted_mean)
-median_female_0.7 <- central_female |> pull(median)
+weighted_mean_female_0.7 <- central_female_0.7 |> pull(weighted_mean)
+median_female_0.7 <- central_female_0.7 |> pull(median)
 
 # Bees
 est_male <- ci_male |> dplyr::select(sex, estimate, island)
@@ -487,12 +509,12 @@ ina_map
 
 map_female <- ina_map +
     geom_point(data = ci_female, pch = 20, alpha = 0.7,
-               aes(x = long, y = lat, size = n_female, colour = estimate)) +
+               aes(x = long, y = lat, size = n_female_cat, colour = estimate)) +
     scale_colour_gradient(low = "#DB1F48", high = "#000000", na.value = NA,
                         limits = c(0, 50)) +
-    scale_size_continuous(range = c(3, 7),
-                          limits = c(0, 1000),
-                          breaks = seq(100, 1000, by = 200)) +
+#    scale_size_continuous(range = c(3, 7),
+#                          limits = c(0, 1000),
+#                          breaks = seq(100, 1000, by = 200)) +
     # guides(size = guide_legend(title = "Sample size (n)")) +
     theme(legend.position = "right",
           legend.direction = "vertical",
@@ -539,12 +561,12 @@ inset_map_female
 
 map_male <- ina_map +
   geom_point(data = ci_male, pch = 20, alpha = 0.7,
-             aes(x = long, y = lat, size = n_male, colour = estimate)) +
+             aes(x = long, y = lat, size = n_male_cat, colour = estimate)) +
   scale_colour_gradient(low = "#DB1F48", high = "#000000", na.value = NA,
                         limits = c(0, 50)) +
-  scale_size_continuous(range = c(3, 7),
-                        limits = c(0, 1000),
-                        breaks = seq(100, 1000, by = 200)) +
+#  scale_size_continuous(range = c(3, 7),
+#                        limits = c(0, 1000),
+#                        breaks = seq(100, 1000, by = 200)) +
   # guides(size = guide_legend(title = "Sample size (n)")) +
   theme(legend.position = "right",
         legend.direction = "vertical",
@@ -592,12 +614,12 @@ inset_map_male
 # <0.7
 map_female_0.7 <- ina_map +
   geom_point(data = ci_female_0.7, pch = 20, alpha = 0.7,
-             aes(x = long, y = lat, size = n_female, colour = estimate)) +
+             aes(x = long, y = lat, size = n_female_cat, colour = estimate)) +
   scale_colour_gradient(low = "#DB1F48", high = "#000000", na.value = NA,
                         limits = c(0, 50)) +
-  scale_size_continuous(range = c(3, 7),
-                        limits = c(0, 1000),
-                        breaks = seq(100, 1000, by = 200)) +
+  # scale_size_continuous(range = c(3, 7),
+  #                       limits = c(0, 1000),
+  #                       breaks = seq(100, 1000, by = 200)) +
   # guides(size = guide_legend(title = "Sample size (n)")) +
   theme(legend.position = "right",
         legend.direction = "vertical",
@@ -642,14 +664,69 @@ inset_map_female_0.7 <- ggdraw(map_female_0.7) +
 
 inset_map_female_0.7
 
-map_male_0.7 <- ina_map +
-  geom_point(data = ci_male_0.7, pch = 20, alpha = 0.7,
-             aes(x = long, y = lat, size = n_male, colour = estimate)) +
+# map_male_0.7 <- ina_map +
+#   geom_point(data = ci_male_0.7, pch = 20, alpha = 0.7,
+#              aes(x = long, y = lat, size = n_male, colour = estimate)) +
+#   scale_colour_gradient(low = "#DB1F48", high = "#000000", na.value = NA,
+#                         limits = c(0, 50)) +
+#   scale_size_continuous(range = c(3, 7),
+#                         limits = c(0, 1000),
+#                         breaks = seq(100, 1000, by = 200)) +
+#   # guides(size = guide_legend(title = "Sample size (n)")) +
+#   theme(legend.position = "right",
+#         legend.direction = "vertical",
+#         legend.key.size = unit(1, 'lines'),
+#         legend.spacing.x = unit(0.3, 'lines'),
+#         plot.margin = margin(5, 10, 5, 5, "mm"),
+#         text = element_text(size = 9, family = "Fira Code"),
+#         legend.title = element_text(size = 9, family = "Fira Code Bold")) +
+#   labs(size = '\nSample size',
+#        colour = '\nPrevalence (%)\n') +
+#   geom_rect(
+#     xmin = (119.779369 - 1.2),
+#     ymin = (-9.657382 - 1.2),
+#     xmax = (119.779369 + 1.2),
+#     ymax = (-9.657382 + 1.2),
+#     fill = NA, 
+#     colour = "black",
+#     size = 0.3
+#   )
+# 
+# map_male_0.7
+# 
+# inset_map_male_0.7 <- ggdraw(map_male_0.7) +
+#   draw_plot(
+#     {
+#       map_male_0.7 +
+#         coord_sf(
+#           xlim = c((119.779369 - 1.2), (119.779369 + 1.2)),
+#           ylim = c((-9.657382 - 1.2), (-9.657382 + 1.2)),
+#           expand = FALSE
+#         ) +
+#         theme(legend.position = 'none')
+#     },
+#     # The distance along a (0,1) x-axis to draw the left edge of the plot
+#     x = 0.58, 
+#     # The distance along a (0,1) y-axis to draw the bottom edge of the plot
+#     y = 0.60,
+#     # The width and height of the plot expressed as proportion of the entire
+#     # ggdraw object
+#     width = 0.38, 
+#     height = 0.38)
+# 
+# inset_map_male_0.7
+
+# Overall (male + female) prevalence
+# Deficient
+map_total <- ina_map +
+  geom_point(data = prevalence, pch = 20, alpha = 0.7,
+             aes(x = long, y = lat, size = n_total_cat, colour = prev_total)) +
   scale_colour_gradient(low = "#DB1F48", high = "#000000", na.value = NA,
                         limits = c(0, 50)) +
-  scale_size_continuous(range = c(3, 7),
-                        limits = c(0, 1000),
-                        breaks = seq(100, 1000, by = 200)) +
+  scale_size_discrete(drop = FALSE) +
+  #  scale_size_continuous(range = c(3, 7),
+  #                        limits = c(0, 1000),
+  #                        breaks = seq(100, 1000, by = 200)) +
   # guides(size = guide_legend(title = "Sample size (n)")) +
   theme(legend.position = "right",
         legend.direction = "vertical",
@@ -670,12 +747,12 @@ map_male_0.7 <- ina_map +
     size = 0.3
   )
 
-map_male_0.7
+map_total
 
-inset_map_male_0.7 <- ggdraw(map_male_0.7) +
+inset_map_total <- ggdraw(map_total) +
   draw_plot(
     {
-      map_male_0.7 +
+      map_total +
         coord_sf(
           xlim = c((119.779369 - 1.2), (119.779369 + 1.2)),
           ylim = c((-9.657382 - 1.2), (-9.657382 + 1.2)),
@@ -692,22 +769,30 @@ inset_map_male_0.7 <- ggdraw(map_male_0.7) +
     width = 0.38, 
     height = 0.38)
 
-inset_map_male_0.7
+inset_map_total
+
+# <0.7?
 
 ## Plot: Beeswarm ----------------------------------------------------------
 
 est_by_sex <- estimate |> 
   ggplot() +
-    geom_hline(yintercept = weighted_mean_male,
-               colour = "#5b9877", linetype = 2) +
-    geom_hline(yintercept = weighted_mean_female,
-               colour = "#e7a29c", linetype = 2) +
-    geom_hline(yintercept = median_male,
-               colour = "#5b9877", linetype = 3) +
-    geom_hline(yintercept = median_female,
-               colour = "#e7a29c", linetype = 3) +
+    # geom_hline(yintercept = weighted_mean_male,
+    #            colour = "#5b9877", linetype = 2) +
+    # geom_hline(yintercept = weighted_mean_female,
+    #            colour = "#e7a29c", linetype = 2) +
+    # geom_hline(yintercept = median_male,
+    #            colour = "#5b9877", linetype = 3) +
+    # geom_hline(yintercept = median_female,
+    #            colour = "#e7a29c", linetype = 3) +
     geom_beeswarm(aes(x = sex, y = estimate, colour = sex),
                   alpha = 0.6, size = 3.1, cex = 2.3) +
+    geom_boxplot(aes(x = sex, y = estimate),
+                 alpha = 0, width = 0.5/2) +
+    geom_point(aes(x = 'Male', y = weighted_mean_male),
+               colour = 'maroon', shape = 18, size = 3.5) +
+    geom_point(aes(x = 'Female', y = weighted_mean_female),
+               colour = 'maroon', shape = 18, size = 3.5) +
     scale_color_manual(values = c("Male" = "#5b9877",
                                   "Female" = "#e7a29c")) +
     theme(legend.position = 'none',
@@ -723,16 +808,22 @@ est_by_sex
 # <0.7
 est_by_sex_0.7 <- estimate_0.7 |> 
   ggplot() +
-  geom_hline(yintercept = weighted_mean_male_0.7,
-             colour = "#5b9877", linetype = 2) +
-  geom_hline(yintercept = weighted_mean_female_0.7,
-             colour = "#e7a29c", linetype = 2) +
-  geom_hline(yintercept = median_male_0.7,
-             colour = "#5b9877", linetype = 3) +
-  geom_hline(yintercept = median_female_0.7,
-             colour = "#e7a29c", linetype = 3) +
+  # geom_hline(yintercept = weighted_mean_male_0.7,
+  #            colour = "#5b9877", linetype = 2) +
+  # geom_hline(yintercept = weighted_mean_female_0.7,
+  #            colour = "#e7a29c", linetype = 2) +
+  # geom_hline(yintercept = median_male_0.7,
+  #            colour = "#5b9877", linetype = 3) +
+  # geom_hline(yintercept = median_female_0.7,
+  #            colour = "#e7a29c", linetype = 3) +
   geom_beeswarm(aes(x = sex, y = estimate, colour = sex),
                 alpha = 0.6, size = 3.1, cex = 2.3) +
+  geom_boxplot(aes(x = sex, y = estimate),
+               alpha = 0, width = 0.5/2) +
+  geom_point(aes(x = 'Male', y = weighted_mean_male_0.7),
+             colour = 'maroon', shape = 18, size = 3.5) +
+  geom_point(aes(x = 'Female', y = weighted_mean_female_0.7),
+             colour = 'maroon', shape = 18, size = 3.5) +
   scale_color_manual(values = c("Male" = "#5b9877",
                                 "Female" = "#e7a29c")) +
   theme(legend.position = 'none',
@@ -745,9 +836,42 @@ est_by_sex_0.7 <- estimate_0.7 |>
 
 est_by_sex_0.7
 
+# In this plot, deficient/intermediate males?
+
 # By island
-est_by_sex_by_island <- est_by_sex + facet_wrap(~island) # Deficient-only
+est_by_sex_by_island <- est_by_sex + facet_wrap(~island) 
 est_by_sex_0.7_by_island <- est_by_sex_0.7 + facet_wrap(~island) # <0.7
+
+# Deficient-only
+est_by_sex_by_island <- estimate |> 
+  ggplot() +
+  geom_beeswarm(aes(x = sex, y = estimate, colour = sex),
+                alpha = 0.6, size = 3.1, cex = 2.3) +
+  scale_color_manual(values = c("Male" = "#5b9877",
+                                "Female" = "#e7a29c")) +
+  theme(legend.position = 'none',
+        axis.ticks.y = element_blank(),
+        axis.ticks.x = element_blank()) +
+  scale_y_continuous(limits = c(0, 50),
+                     breaks = seq(0, 50, by = 10)) +
+  labs(x = 'Sex',
+       y = 'Prevalence (%)\n') +
+  facet_wrap(~island)
+
+est_by_sex_0.7_by_island <- estimate_0.7 |>
+  ggplot() +
+  geom_beeswarm(aes(x = sex, y = estimate, colour = sex),
+                alpha = 0.6, size = 3.1, cex = 2.3) +
+  scale_color_manual(values = c("Male" = "#5b9877",
+                                "Female" = "#e7a29c")) +
+  theme(legend.position = 'none',
+        axis.ticks.y = element_blank(),
+        axis.ticks.x = element_blank()) +
+  scale_y_continuous(limits = c(0, 50),
+                     breaks = seq(0, 50, by = 10)) +
+  labs(x = 'Sex',
+       y = 'Prevalence (%)\n') +
+  facet_wrap(~island)
 
 est_by_sex_by_island
 est_by_sex_0.7_by_island
@@ -770,6 +894,35 @@ n_by_sex <- sample |>
          y = 'Number of studies\n')
 
 n_by_sex
+
+## Plot: Male percentage ----------------------------------------------------
+mf_percentage <- prevalence |>
+  mutate(n_male = if_else(is.na(n_male), 0, n_male),
+         n_female = if_else(is.na(n_female), 0, n_female),
+         n_total = n_male + n_female,
+         mf_perc = 100 * (n_male / n_total),
+         n_total_cat = case_when(
+           n_total <= 10 ~ '[1, 10)',
+           n_total <= 100 ~ '[10, 100)',
+           n_total <= 1000 ~ '[100, 1000)',
+           is.na(n_total) ~ NA_character_,
+           TRUE ~ 'Check me!'
+         ) |> factor(levels = c('[1, 10)', '[10, 100)', '[100, 1000)'))) |> 
+  dplyr::select(site_name, n_male, n_female, n_total_cat, mf_perc)
+
+mf_perc_plot <- mf_percentage |> 
+  mutate(site_name = factor(site_name),
+         site_name = fct_reorder(site_name, mf_perc)) |> 
+  ggplot(aes(x = mf_perc, y = site_name)) +
+    geom_point(aes(size = n_total_cat),
+               colour = "gray50", alpha = 0.7, shape = 18) +
+    scale_x_continuous(limits = c(0, 100), breaks = seq(0, 100, by = 20)) +
+    labs(x = "\nProportion of males (%)",
+         y = "") +
+    scale_size_discrete(drop = FALSE, range = c(1, 4)) +
+    theme(legend.position = 'bottom')
+
+mf_perc_plot
 
 # End session
 xfun::session_info()
