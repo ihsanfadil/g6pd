@@ -806,35 +806,71 @@ est_by_sex <- estimate |>
 est_by_sex
 
 # <0.7
-est_by_sex_0.7 <- estimate_0.7 |> 
-  ggplot() +
-  # geom_hline(yintercept = weighted_mean_male_0.7,
-  #            colour = "#5b9877", linetype = 2) +
-  # geom_hline(yintercept = weighted_mean_female_0.7,
-  #            colour = "#e7a29c", linetype = 2) +
-  # geom_hline(yintercept = median_male_0.7,
-  #            colour = "#5b9877", linetype = 3) +
-  # geom_hline(yintercept = median_female_0.7,
-  #            colour = "#e7a29c", linetype = 3) +
-  geom_beeswarm(aes(x = sex, y = estimate, colour = sex),
-                alpha = 0.6, size = 3.1, cex = 2.3) +
-  geom_boxplot(aes(x = sex, y = estimate),
-               alpha = 0, width = 0.5/2) +
-  geom_point(aes(x = 'Male', y = weighted_mean_male_0.7),
-             colour = 'maroon', shape = 18, size = 3.5) +
-  geom_point(aes(x = 'Female', y = weighted_mean_female_0.7),
-             colour = 'maroon', shape = 18, size = 3.5) +
-  scale_color_manual(values = c("Male" = "#5b9877",
-                                "Female" = "#e7a29c")) +
-  theme(legend.position = 'none',
-        axis.ticks.y = element_blank(),
-        axis.ticks.x = element_blank()) +
-  scale_y_continuous(limits = c(0, 50),
-                     breaks = seq(0, 50, by = 10)) +
-  labs(x = 'Sex',
-       y = 'Prevalence (%)\n')
+new_estimate <- estimate_0.7 |> 
+  filter(sex == 'Female') |> 
+  mutate(sex = if_else(sex == 'Female', 'Female (<0.7)', as.character(sex)),
+         sex = factor(sex))
 
-est_by_sex_0.7
+new_estimate2 <- add_row(estimate, new_estimate) |>
+  mutate(sex = if_else(sex == 'Female', 'Female (<0.3)', as.character(sex)),
+         sex = factor(sex, levels = c('Male',
+                                      'Female (<0.3)',
+                                      'Female (<0.7)')))
+
+# est_by_sex_0.7 <- new_estimate |> 
+#   ggplot() +
+#   # geom_hline(yintercept = weighted_mean_male_0.7,
+#   #            colour = "#5b9877", linetype = 2) +
+#   # geom_hline(yintercept = weighted_mean_female_0.7,
+#   #            colour = "#e7a29c", linetype = 2) +
+#   # geom_hline(yintercept = median_male_0.7,
+#   #            colour = "#5b9877", linetype = 3) +
+#   # geom_hline(yintercept = median_female_0.7,
+#   #            colour = "#e7a29c", linetype = 3) +
+#   geom_beeswarm(aes(x = sex, y = estimate, colour = sex),
+#                 alpha = 0.6, size = 3.1, cex = 2.3) +
+#   geom_boxplot(aes(x = sex, y = estimate),
+#                alpha = 0, width = 0.5/2) +
+#   geom_point(aes(x = 'Male', y = weighted_mean_male_0.7),
+#              colour = 'maroon', shape = 18, size = 3.5) +
+#   geom_point(aes(x = 'Female', y = weighted_mean_female_0.7),
+#              colour = 'maroon', shape = 18, size = 3.5) +
+#   scale_color_manual(values = c("Male" = "#5b9877",
+#                                 "Female" = "#e7a29c")) +
+#   theme(legend.position = 'none',
+#         axis.ticks.y = element_blank(),
+#         axis.ticks.x = element_blank()) +
+#   scale_y_continuous(limits = c(0, 50),
+#                      breaks = seq(0, 50, by = 10)) +
+#   labs(x = 'Sex',
+#        y = 'Prevalence (%)\n')
+# 
+# est_by_sex_0.7
+
+est_by_sex2 <- new_estimate2 |> 
+  ggplot() +
+    geom_beeswarm(aes(x = sex, y = estimate, colour = sex),
+                  alpha = 0.5, size = 3.1, cex = 2.3) +
+    geom_boxplot(aes(x = sex, y = estimate),
+                 alpha = 0, width = 0.5/2) +
+    geom_point(aes(x = 'Male', y = weighted_mean_male),
+               colour = 'maroon', shape = 18, size = 3.5) +
+    geom_point(aes(x = 'Female (<0.3)', y = weighted_mean_female),
+               colour = 'maroon', shape = 18, size = 3.5) +
+    geom_point(aes(x = 'Female (<0.7)', y = weighted_mean_female_0.7),
+               colour = 'maroon', shape = 18, size = 3.5) +
+    scale_color_manual(values = c("Male" = "#5b9877",
+                                  "Female (<0.3)" = "maroon",
+                                  "Female (<0.7)" = "#e7a29c")) +
+    theme(legend.position = 'none',
+          axis.ticks.y = element_blank(),
+          axis.ticks.x = element_blank()) +
+    scale_y_continuous(limits = c(0, 50),
+                       breaks = seq(0, 50, by = 10)) +
+    labs(x = 'Sex',
+         y = 'Prevalence (%)\n')
+
+est_by_sex2
 
 # In this plot, deficient/intermediate males?
 
